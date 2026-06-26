@@ -1,0 +1,35 @@
+# Single source of truth for the cascaded pipeline.
+# Hand-edited now; the Phase-3 xyflow editor will read/write THIS file.
+#
+# Swap a model      -> change `provider`/`model` on a node.
+# Add a provider    -> add an adapter in allegro/adapters/ and register it.
+# PAID nodes can be swapped to the OSS providers noted in comments (Phase 2).
+
+transport:
+  type: webrtc            # SmallWebRTC peer connection — phone browser, no cloud account
+
+runtime:
+  # Phase 0 baseline runs honest defaults: barge-in ON, stock VAD. Flip to false in
+  # Phase 1 so kitchen noise can't cut the agent off mid-sentence (test section A).
+  allow_interruptions: true
+
+nodes:
+  vad:
+    provider: silero      # OSS, in-house tuning target — left at STOCK for the baseline
+    params: { confidence: 0.7, stop_secs: 0.5, start_secs: 0.2, min_volume: 0.6 }
+
+  stt:
+    provider: deepgram    # PAID  -> swap: faster_whisper (OSS)
+    model: nova-3
+
+  coach:
+    type: builtin         # the in-house product; NOT swappable
+
+  llm:
+    provider: anthropic   # PAID  -> swap: ollama / vllm (OSS)
+    model: claude-haiku-4-5
+
+  tts:
+    provider: cartesia    # PAID  -> swap: kokoro (OSS)
+    model: sonic-2
+    params: { voice_id: "71a7ad14-091c-4e8e-a314-022ece01c121" }

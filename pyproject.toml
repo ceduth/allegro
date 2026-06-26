@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "allegro"
+version = "0.0.0"
+description = "Hands-free voice cooking coach — Phase 0 baseline spike"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+# The live pipeline (not needed to run the core tests).
+live = [
+    "pipecat-ai[deepgram,cartesia,silero,webrtc]>=0.0.40",
+    "pipecat-ai-small-webrtc-prebuilt",
+    "anthropic>=0.40",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+dev = [
+    "pytest>=8",
+]
+
+[tool.setuptools.packages.find]
+include = ["allegro*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
