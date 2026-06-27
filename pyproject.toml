@@ -15,7 +15,10 @@ dependencies = [
 # The live pipeline (not needed to run the core tests).
 live = [
     # whisper + kokoro give the local, $0 Phase 0a legs (faster-whisper STT, Kokoro TTS).
-    "pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro]>=0.0.40",
+    "pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro]>=1.4",
+    # macOS: Pipecat's Whisper STT imports mlx at module load, so it's required even for
+    # the faster-whisper (CPU) path. Verified against pipecat-ai 1.4.0 on Apple Silicon.
+    "pipecat-ai[mlx-whisper]; sys_platform == 'darwin'",
     "pipecat-ai-small-webrtc-prebuilt",
     "anthropic>=0.40",
     "fastapi>=0.110",

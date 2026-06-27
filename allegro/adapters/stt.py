@@ -27,9 +27,13 @@ def _faster_whisper(cfg: dict):
 
     params = cfg.get("params", {})
     return WhisperSTTService(
-        model=cfg.get("model") or Model.DISTIL_MEDIUM_EN,  # English-only, fast
+        # model/language go through settings on 1.4.0 (top-level kwargs are deprecated);
+        # device/compute_type remain engine-level kwargs.
+        settings=WhisperSTTService.Settings(
+            model=cfg.get("model") or Model.DISTIL_MEDIUM_EN,  # English-only, fast
+            language=Language.EN,
+        ),
         device=params.get("device", "cpu"),
-        # VERIFY: float16 is CUDA-only; int8/default is safe on CPU/Apple Silicon.
+        # float16 is CUDA-only; int8/default is safe on CPU/Apple Silicon.
         compute_type=params.get("compute_type", "int8"),
-        language=Language.EN,
     )
