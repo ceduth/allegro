@@ -27,6 +27,18 @@ mic → SmallWebRTC → Silero VAD → Deepgram STT → CoachProcessor → Carte
 | `allegro/bot.py` | Pipecat wiring, built from the YAML; FastAPI for the phone browser |
 | `tests/test_core.py` | The C/D/E/A/B table as deterministic text-level tests |
 
+## Docs
+
+| Doc | What to expect |
+|---|---|
+| [`docs/spike-plan.md`](docs/spike-plan.md) | The plan: declarative-pipeline spine, phasing (0a→3), cost model, model-swap + xyflow path. Start here. |
+| [`docs/runbook-local.md`](docs/runbook-local.md) | Step-by-step to run the $0 local voice loop on a phone (install, macOS gotchas, model downloads, troubleshooting, teardown). |
+| [`docs/phase0-baseline.md`](docs/phase0-baseline.md) | Fill-in A–F results template for the first live cook — the recorded baseline. |
+| [`docs/billing.md`](docs/billing.md) | How it's paid for, and how to make an inadvertent LLM bill structurally impossible (mock-first, spend pre-flight). |
+| [`docs/cost-model.md`](docs/cost-model.md) | Per-cook token budget, leg-by-leg cost, self-hosted vs cloud. The LLM is the cheap leg; STT/TTS is the spend. |
+| [`docs/walkthrough.md`](docs/walkthrough.md) | One cook traced turn by turn — how silence/noise are ignored, where each (tiny) LLM call comes from. |
+| [`docs/glossary.md`](docs/glossary.md) | Shared terms (leg, turn, fallback turn, re-injection, …) used across the other docs. |
+
 ## Run the tests (no API keys, no Pipecat needed)
 
 ```bash
