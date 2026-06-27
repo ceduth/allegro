@@ -64,53 +64,64 @@ class CoachCore:
         cls = self.classifier.classify(transcript, self.state)
 
         if self.pending_confirm:
-            spoke, armed = self._handle_pending(cls, transcript)
+            spoke, armed, override = self._handle_pending(cls, transcript)
         else:
-            spoke, armed = self._handle_normal(cls, transcript)
+            spoke, armed, override = self._handle_normal(cls, transcript)
 
         return Turn(
             transcript=transcript,
             intent=cls.intent,
-            source=cls.source,
+            # Where the *spoken line* came from: "safety"/"llm"/"step" override the
+            # classification source ("rule"/"llm") when an answer was produced.
+            source=override or cls.source,
             pointer_before=before,
             pointer_after=self.state.pointer,
             spoke=spoke,
             arm_timer=armed,
         )
 
-    # -- routing ----------------------------------------------------------------
+    # -- routing -----------------------------------------------------------------
+    # Routing helpers return (spoke, arm_timer, source_override). source_override is
+    # None unless an answer was produced, in which case it names the answer's origin.
 
-    def _handle_pending(self, cls: Classification, transcript: str) -> tuple[str, int | None]:
+    def _handle_pending(self, cls: Classification, transcript: str):
         """We previously asked 'ready to move on?' and are awaiting a yes/no."""
         if cls.intent == Intent.CONFIRM_YES:
             self.pending_confirm = False
-            return self._do_advance()
+            spoke, armed = self._do_advance()
+            return spoke, armed, None
         if cls.intent == Intent.CONFIRM_NO:
             self.pending_confirm = False
-            return "Okay, take your time. Say next when you're ready.", None
+            return "Okay, take your time. Say next when you're ready.", None, None
         if cls.intent == Intent.QUESTION:
             # Answer but stay parked on the question — keep waiting for confirmation.
-            return self._answer(transcript), None
+            text, origin = self._answer(transcript)
+            return text, None, origin
         # Anything else (incl. noise) → stay silent, keep waiting.
-        return "", None
+        return "", None, None
 
-    def _handle_normal(self, cls: Classification, transcript: str) -> tuple[str, int | None]:
+    def _handle_normal(self, cls: Classification, transcript: str):
         intent = cls.intent
         if intent == Intent.UNKNOWN:
-            return "", None  # silence is never a signal
+            return "", None, None  # silence is never a signal
         if intent == Intent.REPEAT:
-            return self.state.current().text, None
+            return self.state.current().text, None, None
         if intent == Intent.QUESTION:
-            return self._answer(transcript), None
+            text, origin = self._answer(transcript)
+            return text, None, origin
         if intent == Intent.JUMP:
-            return self._do_jump(cls)
+            spoke, armed = self._do_jump(cls)
+            return spoke, armed, None
         if intent == Intent.ADVANCE:
-            # Explicit ("next") advances directly; implicit (LLM) asks first.
+            # Explicit ("next") advances directly; implicit (LLM) asks first — and if the
+            # next step is safety-flagged, the confirmation names it (same as explicit).
             if cls.source == "llm":
-                return self._ask_confirm(reason=None)
-            return self._maybe_advance()
+                spoke, armed = self._ask_confirm(reason=self.state.peek_next())
+                return spoke, armed, None
+            spoke, armed = self._maybe_advance()
+            return spoke, armed, None
         # CONFIRM_* with nothing pending → ignore.
-        return "", None
+        return "", None, None
 
     def _maybe_advance(self) -> tuple[str, int | None]:
         nxt = self.state.peek_next()
@@ -138,12 +149,13 @@ class CoachCore:
         step = self.state.jump_to(cls.target_index)
         return f"Step {step.index + 1}: {step.text}", step.timer_seconds
 
-    def _answer(self, transcript: str) -> str:
+    def _answer(self, transcript: str) -> tuple[str, str]:
+        """Returns (text, origin) where origin is 'safety' | 'llm' | 'step'."""
         step = self.state.current()
         curated = self.safety.answer(transcript, step)
         if curated is not None:
-            return curated
+            return curated, "safety"
         if self.answerer is not None:
-            return self.answerer(transcript, step)
+            return self.answerer(transcript, step), "llm"
         # No LLM wired (e.g. baseline/tests): fall back to re-reading the step.
-        return step.text
+        return step.text, "step"

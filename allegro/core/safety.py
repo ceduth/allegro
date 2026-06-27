@@ -28,12 +28,14 @@ _RULES: dict[str, str] = {
     ),
 }
 
-# keyword → topic. First match wins.
+# keyword → topic. First match wins. Kept deliberately tight: a bare "oil" would wrongly
+# intercept "how much oil?" (a quantity question) with splatter advice, so hot_oil keys on
+# hazard words only, and doneness drops "how long" for the same reason.
 _TRIGGERS: list[tuple[tuple[str, ...], str]] = [
     (("done", "cooked", "cook through", "pink", "ready to eat", "165", "temperature",
-      "temp", "how long"), "doneness"),
+      "temp"), "doneness"),
     (("raw", "salmonella", "contaminat", "wash", "taste"), "raw_protein"),
-    (("oil", "splatter", "smoke", "grease fire", "burn"), "hot_oil"),
+    (("splatter", "smoke", "grease fire", "oil fire", "flare"), "hot_oil"),
 ]
 
 

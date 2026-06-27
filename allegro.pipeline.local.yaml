@@ -1,0 +1,35 @@
+# Phase 0a profile — bill-safe ($0): mock LLM (zero network) + local STT/TTS.
+# The mock makes an inadvertent runtime LLM bill structurally impossible; faster-whisper
+# and kokoro run on the dev machine, offline after first model download. No API keys.
+#
+# Select it with:
+#   ALLEGRO_PIPELINE=allegro.pipeline.local.yaml python -m allegro.bot
+#
+# Use this for spine + A/B/C/E logic work. Switch to allegro.pipeline.yaml (the hosted
+# 0b baseline) only after the billing pre-flight in docs/billing.md.
+
+transport:
+  type: webrtc
+
+runtime:
+  allow_interruptions: true
+
+nodes:
+  vad:
+    provider: silero
+    params: { confidence: 0.7, stop_secs: 0.5, start_secs: 0.2, min_volume: 0.6 }
+
+  stt:
+    provider: faster_whisper    # OSS, local — offline after first model download
+    model: distil-medium.en
+    params: { device: cpu, compute_type: int8 }
+
+  coach:
+    type: builtin
+
+  llm:
+    provider: mock              # zero network calls — no Console key, no per-token bill
+
+  tts:
+    provider: kokoro            # OSS, local — Kokoro ONNX; swap to `piper` if unavailable
+    params: { voice: af_heart }

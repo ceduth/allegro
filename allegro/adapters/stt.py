@@ -19,5 +19,17 @@ def _deepgram(cfg: dict):
 
 @register_stt("faster_whisper")
 def _faster_whisper(cfg: dict):
-    # Phase 2: local STT. Must re-pass the A/B noise table before it counts.
-    raise NotImplementedError("faster-whisper STT adapter not wired yet (Phase 2)")
+    """Local STT via Pipecat's Whisper service (faster-whisper / CTranslate2). Offline
+    after the first model download; no key, no per-minute bill. Emits the same
+    TranscriptionFrame as Deepgram, so it's a drop-in swap."""
+    from pipecat.services.whisper.stt import Model, WhisperSTTService
+    from pipecat.transcriptions.language import Language
+
+    params = cfg.get("params", {})
+    return WhisperSTTService(
+        model=cfg.get("model") or Model.DISTIL_MEDIUM_EN,  # English-only, fast
+        device=params.get("device", "cpu"),
+        # VERIFY: float16 is CUDA-only; int8/default is safe on CPU/Apple Silicon.
+        compute_type=params.get("compute_type", "int8"),
+        language=Language.EN,
+    )

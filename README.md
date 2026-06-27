@@ -36,16 +36,28 @@ python3 -m pytest -q
 The core runs on the standard library alone, so the acceptance logic is verifiable
 without any provider installed.
 
-## Run the live baseline bot
+## Run the bill-safe local profile first (Phase 0a, $0, no keys)
 
-Needs the live extras and three API keys.
+The `mock` LLM makes a runtime bill structurally impossible (zero network calls); STT/TTS
+run locally (faster-whisper + Kokoro, offline after first model download). No API keys.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[live,dev]"
+ALLEGRO_PIPELINE=allegro.pipeline.local.yaml python -m allegro.bot
+```
+
+Validate the spine + A/B/C/E logic here for free before spending a cent.
+
+## Run the hosted baseline bot (Phase 0b)
+
+Switch to the hosted stack — needs the three API keys. **Do the billing pre-flight in
+[`docs/billing.md`](docs/billing.md) first** (Console key, spend cap, alerts).
+
+```bash
 cp .env.example .env   # then fill in DEEPGRAM/CARTESIA/ANTHROPIC keys
 set -a; source .env; set +a
-python -m allegro.bot
+python -m allegro.bot   # uses allegro.pipeline.yaml (hosted) by default
 ```
 
 Open `http://<your-computer-ip>:7860/client` in the **phone's** browser (phone and
@@ -58,8 +70,14 @@ PASS/FAIL — that's the baseline.
 
 ## Swapping models
 
-Edit `allegro.pipeline.yaml` — change a node's `provider`/`model`. OSS legs
-(`faster_whisper`, `kokoro`, `ollama`) are registered but raise `NotImplementedError`
-until Phase 2. **Cost-migration triggers** (per `docs/spike-plan.md`): swap TTS → Kokoro
-at ~1k sessions/mo; STT → faster-whisper when its bill clears a box (re-pass A/B first);
-keep the LLM on Haiku.
+Edit the active profile — change a node's `provider`/`model`. Built-in providers:
+
+| Leg | Hosted (paid) | Local (OSS, $0) | Mock |
+|---|---|---|---|
+| STT | `deepgram` | `faster_whisper` | — |
+| TTS | `cartesia` | `kokoro`, `piper` | — |
+| LLM | `anthropic` | `ollama` *(Phase 2 stub)* | `mock` |
+
+`ollama` is the only remaining `NotImplementedError` stub (Phase 2). **Cost-migration
+triggers** (per `docs/spike-plan.md`): swap TTS → Kokoro at ~1k sessions/mo; STT →
+faster-whisper when its bill clears a box (re-pass A/B first); keep the LLM on Haiku.

@@ -26,9 +26,29 @@ from .registry import build_llm, build_stt, build_tts
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "allegro.pipeline.yaml"
 
+# Cloud providers that need a key. Local/mock providers need none — that's the point of
+# the Phase 0a profile.
+_KEY_BY_PROVIDER = {
+    "deepgram": "DEEPGRAM_API_KEY",
+    "cartesia": "CARTESIA_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+}
 
-def load_config(path: Path = CONFIG_PATH) -> dict:
-    return yaml.safe_load(path.read_text())
+
+def load_config(path: str | Path | None = None) -> dict:
+    """Load the pipeline profile. Override the default with ALLEGRO_PIPELINE, e.g.
+    `ALLEGRO_PIPELINE=allegro.pipeline.local.yaml` for the bill-safe $0 profile."""
+    chosen = path or os.environ.get("ALLEGRO_PIPELINE") or CONFIG_PATH
+    return yaml.safe_load(Path(chosen).read_text())
+
+
+def required_keys(cfg: dict) -> list[str]:
+    keys = []
+    for leg in ("stt", "tts", "llm"):
+        key = _KEY_BY_PROVIDER.get(cfg["nodes"][leg]["provider"])
+        if key:
+            keys.append(key)
+    return keys
 
 
 def build_core(cfg: dict) -> CoachCore:
@@ -147,9 +167,12 @@ def make_fastapi_app():
 def main() -> None:
     import uvicorn
 
-    for key in ("DEEPGRAM_API_KEY", "CARTESIA_API_KEY", "ANTHROPIC_API_KEY"):
-        if not os.environ.get(key):
-            raise SystemExit(f"missing {key} — copy .env.example to .env and fill it in")
+    missing = [k for k in required_keys(load_config()) if not os.environ.get(k)]
+    if missing:
+        raise SystemExit(
+            f"missing {', '.join(missing)} — copy .env.example to .env and fill it in "
+            "(or run the $0 local profile: ALLEGRO_PIPELINE=allegro.pipeline.local.yaml)"
+        )
     uvicorn.run(make_fastapi_app(), host="0.0.0.0", port=7860)
 
 

@@ -71,6 +71,38 @@ class AnthropicLLM:
         return msg.content[0].text.strip() if msg.content else ""
 
 
+class MockLLM:
+    """Zero-network LLM stand-in — the Phase 0a bill guarantee. Makes an inadvertent
+    runtime LLM bill *structurally impossible*: there is no client and no network call.
+    Counts its own calls so a regression test can assert the rule layer never reaches it
+    on the no-LLM cases (silence / noise / explicit advancement)."""
+
+    def __init__(self) -> None:
+        self.classify_calls = 0
+        self.answer_calls = 0
+
+    @property
+    def calls(self) -> int:
+        return self.classify_calls + self.answer_calls
+
+    def classify(self, transcript: str, current_step_text: str) -> Intent:
+        self.classify_calls += 1
+        t = transcript.lower()
+        # Canned: recognise the one implicit-advance shape; everything else unknown.
+        if any(w in t for w in ("soft", "translucent", "looks done", "ready now")):
+            return Intent.ADVANCE
+        return Intent.UNKNOWN
+
+    def answer(self, question: str, step: Step) -> str:
+        self.answer_calls += 1
+        return f"(mock answer for: {step.text})"
+
+
+@register_llm("mock")
+def _mock(cfg: dict) -> MockLLM:
+    return MockLLM()
+
+
 @register_llm("anthropic")
 def _anthropic(cfg: dict) -> AnthropicLLM:
     return AnthropicLLM(model=cfg.get("model", "claude-haiku-4-5"))

@@ -14,7 +14,8 @@ dependencies = [
 [project.optional-dependencies]
 # The live pipeline (not needed to run the core tests).
 live = [
-    "pipecat-ai[deepgram,cartesia,silero,webrtc]>=0.0.40",
+    # whisper + kokoro give the local, $0 Phase 0a legs (faster-whisper STT, Kokoro TTS).
+    "pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro]>=0.0.40",
     "pipecat-ai-small-webrtc-prebuilt",
     "anthropic>=0.40",
     "fastapi>=0.110",

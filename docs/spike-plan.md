@@ -31,11 +31,18 @@ nodes:
 
 ## Phasing
 
-### Phase 0 — Baseline spike (this commit)
-Stack: Pipecat + Deepgram + Cartesia + Haiku, `SmallWebRTC` web client in the phone
-browser. **Honest defaults, no tuning** — interruptions ON, stock VAD. Build the `coach`
-spine + turn log. Run the A–F table once and record FAIL counts.
-**Output = the baseline turn log, not a working coach.** (~$0.30/session.)
+### Phase 0a — Spine, bill-safe ($0)
+`mock` LLM (zero network calls) + local STT/TTS (faster-whisper, kokoro). Build the
+`coach` spine + turn log. Validate silence / noise / advancement logic against the
+A/B/C/E cases with the mock (logic only — real A1–A5 acoustics are a 0b/live-rig
+question). **Regression test: assert the LLM is called 0 times** on the no-LLM cases.
+Cost: **$0**. See [`billing.md`](./billing.md).
+
+### Phase 0b — Honest baseline (spend-capped)
+Switch to the real stack: Pipecat + Deepgram + Cartesia + Haiku, `SmallWebRTC` web client
+in the phone browser. **Do the billing pre-flight first** (Console key, spend cap, alerts).
+**Honest defaults, no tuning** — interruptions ON, stock VAD. Run the A–F table once and
+record FAIL counts. **Output = the baseline turn log, not a working coach.** (~$0.30/session.)
 
 ### Phase 1 — Pass the kitchen test
 Tune VAD against A1–A5 first. Barge-in OFF (half-duplex). Drive advancement from the
@@ -44,9 +51,10 @@ a clean F1 cook. VAD-gating here also halves the STT bill — kill criterion and
 are the same lever.
 
 ### Phase 2 — Model-swap hardening
-Fill in OSS adapters behind the same interfaces: faster-whisper (STT), Kokoro (TTS),
-Ollama/vLLM (LLM). Each OSS swap must **re-pass the A/B table** before it counts. Write
-the cost-migration triggers into the README.
+Local STT/TTS (faster-whisper, kokoro) land in 0a; what remains here is the OSS **LLM**
+swap (Ollama/vLLM) behind the same interface, plus the scale-time migration. Each OSS
+swap must **re-pass the A/B table** before it counts. Write the cost-migration triggers
+into the README.
 
 ### Phase 3 — Visual plug-and-play (xyflow)
 A React/xyflow editor where each node is a graph node, the provider is a dropdown from
