@@ -96,3 +96,24 @@ Per the spec, most failures are diagnosable straight from this — keep it open 
 - **Doesn't prove:** the A1–A5 noise kill-criteria. Local STT/TTS on dev Wi-Fi is not the
   noisy-kitchen rig, and Kokoro/Whisper are not the hosted Cartesia/Deepgram you baseline
   in 0b. Treat 0a as logic validation; the acceptance table is 0b on the real rig.
+
+## Teardown (full cleanup)
+
+Everything installs into the repo-local `.venv` — the base/system Python is never touched.
+The only things that live *outside* the venv are the model caches (shared across projects
+by design), so a complete reset is:
+
+```bash
+# 1. the virtualenv (all Python deps: pipecat, faster-whisper, kokoro, mlx-whisper, …)
+rm -rf .venv
+
+# 2. the downloaded models — these survive deleting .venv
+rm -rf ~/.cache/pipecat/kokoro-onnx          # Kokoro model + voices (~330 MB)
+rm -rf ~/.cache/huggingface/hub/models--*whisper*   # Whisper model (~400 MB)
+
+# 3. local run artifacts (gitignored, optional)
+rm -rf logs/
+```
+
+Nothing else is created: no global pip installs, no system packages, no launch agents.
+Deleting `.venv` reclaims the dependencies; step 2 reclaims the ~700 MB of model files.
