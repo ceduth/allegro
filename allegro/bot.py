@@ -73,6 +73,7 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
     from loguru import logger
     from pipecat.frames.frames import (
         Frame,
+        InputAudioRawFrame,
         InterimTranscriptionFrame,
         TranscriptionFrame,
         TTSSpeakFrame,
@@ -87,6 +88,7 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
             self._core = core
             self._log = turnlog
             self._timers = TimerManager(self._on_timer)
+            self._audio_seen = False
 
         async def _on_timer(self, step) -> None:
             self._log.event("timer_elapsed", step=step.index)
@@ -94,6 +96,15 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
 
         async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
             await super().process_frame(frame, direction)
+            # Does inbound audio even reach the pipeline? Log the first frame once. If this
+            # never prints while your mic is live, the transport isn't decoding your audio
+            # (aiortc/codec issue), not a VAD-threshold problem.
+            if isinstance(frame, InputAudioRawFrame) and not self._audio_seen:
+                self._audio_seen = True
+                logger.debug(
+                    f"🔊  Coach: first inbound audio — {frame.sample_rate}Hz, "
+                    f"{frame.num_channels}ch, {len(frame.audio)} bytes"
+                )
             # Input-path observability: if these never print while you talk, VAD isn't
             # detecting speech (tune VAD) — nothing downstream can fire without them.
             if isinstance(frame, UserStartedSpeakingFrame):
