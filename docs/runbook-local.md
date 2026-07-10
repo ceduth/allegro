@@ -62,12 +62,37 @@ ALLEGRO_PIPELINE=allegro.pipeline.local.yaml python -m allegro.bot
 - The server requires **no API keys** on this profile — if it complains about a missing
   key, you're accidentally on the hosted profile (check `ALLEGRO_PIPELINE`).
 
-## 4. Connect the phone
+## 4. Connect
 
-1. Find your computer's LAN IP: `ipconfig getifaddr en0` (Wi-Fi) on macOS.
-2. On the phone browser, open `http://<that-ip>:7860/client`.
-3. Allow microphone access. You should hear the greeting (the step-one recipe line).
-4. Prop the phone ~3 ft away and cook. Every turn writes to `logs/session.jsonl`.
+### First, validate on the laptop (no HTTPS needed)
+
+`localhost` is a browser **secure context**, so the mic + WebRTC work over plain HTTP:
+
+1. Open `http://localhost:7860/client` on the same machine.
+2. Click **Connect** (top-right). Allow the mic.
+3. You should hear the greeting (step one), then be able to talk to the coach.
+
+Do this first — it's the fastest proof the whole loop works, for $0.
+
+### Then the phone — needs HTTPS (a tunnel)
+
+**You cannot use `http://<lan-ip>:7860` on a phone.** Browsers block the microphone
+(`getUserMedia`) and WebRTC on any non-localhost HTTP origin, and Chrome force-upgrades
+LAN IPs to `https://` — which hits the plain-HTTP server and gives `ERR_SSL_PROTOCOL_ERROR`
+(server log: `Invalid HTTP request received`). Give the phone a real HTTPS origin with a
+tunnel. With the bot running, in another terminal:
+
+```bash
+cloudflared tunnel --url http://localhost:7860     # prints a https://<random>.trycloudflare.com URL
+# or:  ngrok http 7860
+```
+
+Open the printed `https://…/client` on the phone, allow the mic, and cook. Signaling goes
+through the tunnel; the audio itself is still WebRTC peer-to-peer over your LAN. Prop the
+phone ~3 ft away. Every turn writes to `logs/session.jsonl`.
+
+> Alternative to a tunnel: run the server with a self-signed TLS cert and accept the
+> browser warning on the phone — more fiddly than a tunnel; the tunnel is recommended.
 
 ## 5. Watch the turn log
 
@@ -84,10 +109,10 @@ Per the spec, most failures are diagnosable straight from this — keep it open 
 |---|---|
 | `import pipecat.services.kokoro.tts` fails | Old Pipecat — switch `tts.provider` to `piper` (§2). |
 | Whisper error: *"device does not support efficient float16"* | On CPU/Apple Silicon keep `compute_type: int8` (the local profile default). Don't set `float16` without CUDA. |
-| Phone can't reach `:7860` | Different Wi-Fi, or macOS firewall blocking Python. Same network; allow incoming connections for the Python binary. |
-| No greeting / no audio back | The `on_client_connected` event name is `# VERIFY` in `bot.py` — confirm it against your installed Pipecat (see bot.py:build_pipeline). |
+| `ERR_SSL_PROTOCOL_ERROR` on the LAN IP; log says `Invalid HTTP request received` | Chrome force-upgraded `http://<ip>` to `https://` against the plain-HTTP server. Don't use the LAN IP — use `localhost` on the laptop, or a tunnel for the phone (§4). |
+| Mic blocked / no mic prompt on the phone | Non-localhost HTTP is not a secure context, so `getUserMedia` is blocked. There is no header/flag fix worth chasing — use a tunnel (§4). `localhost` on the laptop is exempt. |
+| No greeting / no audio back after Connect | The `on_client_connected` event name is `# VERIFY` in `bot.py` — confirm it against your installed Pipecat (see bot.py:build_pipeline). Capture the server log and the browser EVENTS panel. |
 | Agent gets cut off by noise | **Expected** on stock defaults (`allow_interruptions: true`). That's the Phase 0 baseline finding, not a bug — record it. |
-| Mic permission blocked on phone | `http://` over LAN may need the site marked as allowed; some browsers gate mic to secure contexts — try Safari on iOS, or Chrome which allows mic on private-IP origins. |
 
 ## What this proves (and doesn't)
 
