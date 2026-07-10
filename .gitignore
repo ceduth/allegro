@@ -19,3 +19,6 @@ env/
 
 # Turn logs (the spike's output — keep locally, don't commit)
 logs/
+
+# Editor / machine-local config
+.vscode/
