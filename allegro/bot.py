@@ -156,6 +156,7 @@ async def bot(runner_args) -> None:
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineParams, PipelineTask
+    from pipecat.processors.audio.vad_processor import VADProcessor
     from pipecat.transports.base_transport import TransportParams
     from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 
@@ -166,12 +167,12 @@ async def bot(runner_args) -> None:
     vad_params = cfg["nodes"]["vad"].get("params", {})
     transport = SmallWebRTCTransport(
         webrtc_connection=runner_args.webrtc_connection,
-        params=TransportParams(
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(**vad_params)),
-        ),
+        params=TransportParams(audio_in_enabled=True, audio_out_enabled=True),
     )
+    # Pipecat 1.4: VAD is a pipeline PROCESSOR, not a TransportParams field (that kwarg is
+    # silently dropped). VADProcessor emits VADUserStarted/StoppedSpeakingFrame, which the
+    # segmented Whisper STT consumes to produce a transcription.
+    vad = VADProcessor(vad_analyzer=SileroVADAnalyzer(params=VADParams(**vad_params)))
     stt = build_stt(cfg["nodes"]["stt"])
     tts = build_tts(cfg["nodes"]["tts"])
     coach = _make_coach_processor(core, turnlog)
@@ -182,7 +183,7 @@ async def bot(runner_args) -> None:
         await coach.push_frame(TTSSpeakFrame(core.greeting()))
 
     allow_int = cfg.get("runtime", {}).get("allow_interruptions", True)
-    pipeline = Pipeline([transport.input(), stt, coach, tts, transport.output()])
+    pipeline = Pipeline([transport.input(), vad, stt, coach, tts, transport.output()])
     task = PipelineTask(
         pipeline,
         params=PipelineParams(allow_interruptions=allow_int, enable_metrics=True),
