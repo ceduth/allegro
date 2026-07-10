@@ -17,7 +17,10 @@ runtime:
 nodes:
   vad:
     provider: silero
-    params: { confidence: 0.7, stop_secs: 0.5, start_secs: 0.2, min_volume: 0.6 }
+    # Loosened from stock (0.7 / 0.6) for a phone mic over WebRTC AGC, which tends to sit
+    # below the default gates → VAD never fires → no STT. min_volume 0 removes the RMS gate;
+    # confidence 0.5 is more permissive. (The hosted 0b profile keeps stock for the baseline.)
+    params: { confidence: 0.5, stop_secs: 0.6, start_secs: 0.2, min_volume: 0.0 }
 
   stt:
     provider: faster_whisper    # OSS, local — offline after first model download
