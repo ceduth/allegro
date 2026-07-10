@@ -24,8 +24,9 @@ pip install -U pip
 pip install -e ".[live,dev]"
 ```
 
-This pulls `pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro]` plus the
-small-webrtc prebuilt UI. (Deepgram/Cartesia/Anthropic SDKs come along but go unused on
+This pulls `pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro,runner]` — the
+`runner` extra provides the dev server (`/start`, `/api/offer`) and the prebuilt `/client`
+UI that `bot.py` runs under. (Deepgram/Cartesia/Anthropic SDKs come along but go unused on
 the local profile.)
 
 > **macOS / Apple Silicon (verified on pipecat-ai 1.4.0):** Pipecat's Whisper STT module
@@ -109,9 +110,10 @@ Per the spec, most failures are diagnosable straight from this — keep it open 
 |---|---|
 | `import pipecat.services.kokoro.tts` fails | Old Pipecat — switch `tts.provider` to `piper` (§2). |
 | Whisper error: *"device does not support efficient float16"* | On CPU/Apple Silicon keep `compute_type: int8` (the local profile default). Don't set `float16` without CUDA. |
+| Browser: *"Unable to connect"*; server log: `POST /start 404` | Stale install without the runner (or the old hand-rolled server). `bot.py` runs under `pipecat.runner.run`, which serves `/start`. Re-run `pip install -e ".[live,dev]"` (pulls `pipecat-ai[runner]`). |
 | `ERR_SSL_PROTOCOL_ERROR` on the LAN IP; log says `Invalid HTTP request received` | Chrome force-upgraded `http://<ip>` to `https://` against the plain-HTTP server. Don't use the LAN IP — use `localhost` on the laptop, or a tunnel for the phone (§4). |
 | Mic blocked / no mic prompt on the phone | Non-localhost HTTP is not a secure context, so `getUserMedia` is blocked. There is no header/flag fix worth chasing — use a tunnel (§4). `localhost` on the laptop is exempt. |
-| No greeting / no audio back after Connect | The `on_client_connected` event name is `# VERIFY` in `bot.py` — confirm it against your installed Pipecat (see bot.py:build_pipeline). Capture the server log and the browser EVENTS panel. |
+| No greeting / no audio back after connecting | Capture the server log and the browser EVENTS panel. The greeting fires on `on_client_connected` (confirmed correct on 1.4.0); if the pipeline connects but is silent, check STT/TTS built and the mic track started. |
 | Agent gets cut off by noise | **Expected** on stock defaults (`allow_interruptions: true`). That's the Phase 0 baseline finding, not a bug — record it. |
 
 ## What this proves (and doesn't)

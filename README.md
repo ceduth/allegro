@@ -77,8 +77,9 @@ computer on the same Wi-Fi), allow the mic, and cook. Every turn lands in
 `logs/session.jsonl`. Run the A–F table from `phase1-kitchen-test.md` and record the
 PASS/FAIL — that's the baseline.
 
-> A handful of Pipecat constructor/event details are version-sensitive and marked
-> `# VERIFY` in `bot.py`; confirm them against your installed `pipecat-ai` on first run.
+> `bot.py` runs under Pipecat's dev runner (`pipecat.runner.run`), which serves `/start`,
+> `/api/offer`, and the `/client` UI — validated against pipecat-ai 1.4.0. The remaining
+> unknown is the live voice loop itself (mic → STT → coach → TTS on a real connection).
 
 ## Swapping models
 

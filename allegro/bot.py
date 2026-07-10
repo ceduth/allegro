@@ -1,13 +1,18 @@
-"""Phase 0 baseline bot: SmallWebRTC (phone browser) → Silero VAD → Deepgram STT →
-CoachProcessor → Cartesia TTS, wired from allegro.pipeline.yaml.
+"""Phase 0 baseline bot, wired for Pipecat 1.4.0's development runner.
 
-This is the BASELINE: honest stock defaults (barge-in ON, stock VAD) so we can record
-how badly it fails the A–F kitchen table. Do not tune here — tuning is Phase 1.
+The runner (`pipecat.runner.run`) owns the HTTP layer — `POST /start`, `POST /api/offer`,
+and the prebuilt web UI at `/client` — and calls our `bot(runner_args)` once per browser
+connection with an already-established WebRTC connection. We build the transport (with our
+stock VAD), the coach, and the pipeline, and run it. This is the BASELINE: honest stock
+defaults (barge-in ON, stock VAD) so we can record how badly it fails the A–F table.
 
-Run:  python -m allegro.bot   (needs the [live] extras + API keys; see README)
+Run (opens http://localhost:7860 → /client; use an HTTPS tunnel for a phone, see
+docs/runbook-local.md):
 
-NOTE: a few Pipecat constructor/event details are version-sensitive and flagged inline
-with `# VERIFY`. The in-house core this drives is fully tested in tests/test_core.py.
+    python -m allegro.bot                                             # hosted (needs keys)
+    ALLEGRO_PIPELINE=allegro.pipeline.local.yaml python -m allegro.bot   # $0 local, no keys
+
+The in-house core this drives is fully tested in tests/test_core.py.
 """
 
 from __future__ import annotations
@@ -26,8 +31,8 @@ from .registry import build_llm, build_stt, build_tts
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "allegro.pipeline.yaml"
 
-# Cloud providers that need a key. Local/mock providers need none — that's the point of
-# the Phase 0a profile.
+# Cloud providers that need a key. Local/mock providers need none — the point of the
+# Phase 0a profile.
 _KEY_BY_PROVIDER = {
     "deepgram": "DEEPGRAM_API_KEY",
     "cartesia": "CARTESIA_API_KEY",
@@ -64,7 +69,7 @@ def build_core(cfg: dict) -> CoachCore:
 
 
 def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
-    """Defined inside a factory so Pipecat is imported lazily (keeps tests SDK-free)."""
+    """Factory so Pipecat is imported lazily (keeps tests/core SDK-free)."""
     from pipecat.frames.frames import Frame, TranscriptionFrame, TTSSpeakFrame
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
@@ -99,16 +104,25 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
     return CoachProcessor()
 
 
-def build_pipeline(conn, cfg: dict, core: CoachCore, turnlog: TurnLog):
+async def bot(runner_args) -> None:
+    """Runner entry point — discovered by pipecat.runner and invoked once per browser
+    connection with an established WebRTC connection on `runner_args.webrtc_connection`."""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
     from pipecat.audio.vad.vad_analyzer import VADParams
+    from pipecat.frames.frames import TTSSpeakFrame
     from pipecat.pipeline.pipeline import Pipeline
+    from pipecat.pipeline.runner import PipelineRunner
+    from pipecat.pipeline.task import PipelineParams, PipelineTask
     from pipecat.transports.base_transport import TransportParams
     from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 
+    cfg = load_config()
+    core = build_core(cfg)
+    turnlog = TurnLog(Path("logs") / "session.jsonl")
+
     vad_params = cfg["nodes"]["vad"].get("params", {})
     transport = SmallWebRTCTransport(
-        webrtc_connection=conn,
+        webrtc_connection=runner_args.webrtc_connection,
         params=TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
@@ -119,61 +133,33 @@ def build_pipeline(conn, cfg: dict, core: CoachCore, turnlog: TurnLog):
     tts = build_tts(cfg["nodes"]["tts"])
     coach = _make_coach_processor(core, turnlog)
 
-    # VERIFY: on client connect, greet once. Event name is version-sensitive.
     @transport.event_handler("on_client_connected")
-    async def _greet(_t, _client):  # pragma: no cover - live only
-        from pipecat.frames.frames import TTSSpeakFrame
-
+    async def _greet(_transport, _client):
         turnlog.event("session_start")
         await coach.push_frame(TTSSpeakFrame(core.greeting()))
 
-    pipeline = Pipeline([transport.input(), stt, coach, tts, transport.output()])
-    return pipeline
-
-
-def make_fastapi_app():
-    from fastapi import BackgroundTasks, FastAPI
-    from fastapi.responses import JSONResponse
-    from pipecat.pipeline.runner import PipelineRunner
-    from pipecat.pipeline.task import PipelineParams, PipelineTask
-    from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
-    from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
-
-    cfg = load_config()
     allow_int = cfg.get("runtime", {}).get("allow_interruptions", True)
-    app = FastAPI(title="Allegro Phase 0 baseline")
-    app.mount("/client", SmallWebRTCPrebuiltUI)  # phone browser → /client
-
-    async def run_bot(conn: SmallWebRTCConnection) -> None:
-        core = build_core(cfg)
-        turnlog = TurnLog(Path("logs") / "session.jsonl")
-        pipeline = build_pipeline(conn, cfg, core, turnlog)
-        task = PipelineTask(
-            pipeline,
-            params=PipelineParams(allow_interruptions=allow_int, enable_metrics=True),
-        )
-        await PipelineRunner().run(task)
-
-    @app.post("/api/offer")
-    async def offer(request: dict, background_tasks: BackgroundTasks):  # VERIFY signatures
-        conn = SmallWebRTCConnection(ice_servers=["stun:stun.l.google.com:19302"])
-        await conn.initialize(sdp=request["sdp"], type=request["type"])
-        background_tasks.add_task(run_bot, conn)
-        return JSONResponse(conn.get_answer())
-
-    return app
+    pipeline = Pipeline([transport.input(), stt, coach, tts, transport.output()])
+    task = PipelineTask(
+        pipeline,
+        params=PipelineParams(allow_interruptions=allow_int, enable_metrics=True),
+    )
+    await PipelineRunner(handle_sigint=runner_args.handle_sigint).run(task)
 
 
 def main() -> None:
-    import uvicorn
-
+    """Pre-flight the keys the active profile needs, then hand off to the runner's server
+    (it registers /start, /api/offer, /status and mounts the /client UI). Pass runner CLI
+    flags through, e.g. `python -m allegro.bot --host 0.0.0.0 --port 7860`."""
     missing = [k for k in required_keys(load_config()) if not os.environ.get(k)]
     if missing:
         raise SystemExit(
             f"missing {', '.join(missing)} — copy .env.example to .env and fill it in "
             "(or run the $0 local profile: ALLEGRO_PIPELINE=allegro.pipeline.local.yaml)"
         )
-    uvicorn.run(make_fastapi_app(), host="0.0.0.0", port=7860)
+    from pipecat.runner.run import main as runner_main
+
+    runner_main()
 
 
 if __name__ == "__main__":
