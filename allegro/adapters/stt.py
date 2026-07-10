@@ -17,6 +17,20 @@ def _deepgram(cfg: dict):
     )
 
 
+@register_stt("whisper_mlx")
+def _whisper_mlx(cfg: dict):
+    """Local STT, Metal-accelerated on Apple Silicon (needs the mlx-whisper dep). Much
+    lower latency than the CPU faster-whisper path — the right local default on a Mac.
+    Emits the same TranscriptionFrame, so it's a drop-in swap."""
+    from pipecat.services.whisper.stt import MLXModel, WhisperSTTServiceMLX
+    from pipecat.transcriptions.language import Language
+
+    return WhisperSTTServiceMLX(
+        model=cfg.get("model") or MLXModel.LARGE_V3_TURBO_Q4,  # fast + accurate on Metal
+        language=Language.EN,
+    )
+
+
 @register_stt("faster_whisper")
 def _faster_whisper(cfg: dict):
     """Local STT via Pipecat's Whisper service (faster-whisper / CTranslate2). Offline

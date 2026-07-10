@@ -40,7 +40,7 @@ class Classification:
 # Callable[[transcript, current_step_text], Intent]
 LlmClassify = Callable[[str, str], Intent]
 
-_REPEAT = ("say that again", "repeat that", "read that again", "one more time",
+_REPEAT = ("repeat", "say that again", "read that again", "one more time",
            "come again", "what was that")
 _ADVANCE = ("next", "done with that", "done with this", "im done", "i'm done",
             "move on", "moving on", "keep going", "got it next", "next step",

@@ -23,9 +23,9 @@ nodes:
     params: { confidence: 0.5, stop_secs: 0.6, start_secs: 0.2, min_volume: 0.0 }
 
   stt:
-    provider: faster_whisper    # OSS, local — offline after first model download
-    model: distil-medium.en
-    params: { device: cpu, compute_type: int8 }
+    provider: whisper_mlx       # OSS, local, Metal-accelerated (Apple Silicon).
+    # On non-Mac, switch to: provider: faster_whisper, model: distil-medium.en
+    # model defaults to large-v3-turbo-q4 (fast + accurate).
 
   coach:
     type: builtin

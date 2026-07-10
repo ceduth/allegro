@@ -13,7 +13,7 @@ from ..recipe import Step
 _RULES: dict[str, str] = {
     "doneness": (
         "Chicken is safe at 165 degrees Fahrenheit, 74 Celsius, in the thickest part. "
-        "Cut in — the juices should run clear with no pink. If you are unsure, give it "
+        "Cut in, and the juices should run clear with no pink. If you are unsure, give it "
         "more time. Undercooked chicken is not worth the risk."
     ),
     "raw_protein": (
