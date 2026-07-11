@@ -70,18 +70,8 @@ def build_core(cfg: dict) -> CoachCore:
 
 def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
     """Factory so Pipecat is imported lazily (keeps tests/core SDK-free)."""
-    import array
-
     from loguru import logger
-    from pipecat.frames.frames import (
-        Frame,
-        InputAudioRawFrame,
-        InterimTranscriptionFrame,
-        TranscriptionFrame,
-        TTSSpeakFrame,
-        UserStartedSpeakingFrame,
-        UserStoppedSpeakingFrame,
-    )
+    from pipecat.frames.frames import Frame, TranscriptionFrame, TTSSpeakFrame
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
     class CoachProcessor(FrameProcessor):
@@ -90,8 +80,6 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
             self._core = core
             self._log = turnlog
             self._timers = TimerManager(self._on_timer)
-            self._audio_frames = 0
-            self._audio_peak = 0
 
         async def _on_timer(self, step) -> None:
             self._log.event("timer_elapsed", step=step.index)
@@ -99,40 +87,14 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
 
         async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
             await super().process_frame(frame, direction)
-            # Is there actual signal in the inbound audio? Peak amplitude per ~1s window.
-            # peak≈0 → the browser is sending silence (client mic/track), not a VAD issue.
-            # peak high but no 🎙️ below → VAD really isn't firing. Frame count flat → the
-            # track died (transport read).
-            if isinstance(frame, InputAudioRawFrame):
-                self._audio_frames += 1
-                buf = array.array("h")
-                buf.frombytes(frame.audio[: len(frame.audio) // 2 * 2])
-                self._audio_peak = max(self._audio_peak, max((abs(s) for s in buf), default=0))
-                if self._audio_frames % 50 == 0:
-                    logger.debug(
-                        f"🔊  Coach: {self._audio_frames} audio frames, "
-                        f"peak amplitude this window = {self._audio_peak}/32767"
-                    )
-                    self._audio_peak = 0
-            # Input-path observability: if these never print while you talk, VAD isn't
-            # detecting speech (tune VAD) — nothing downstream can fire without them.
-            if isinstance(frame, UserStartedSpeakingFrame):
-                logger.debug("🎙️  Coach: VAD — user STARTED speaking")
-            elif isinstance(frame, UserStoppedSpeakingFrame):
-                logger.debug("🎙️  Coach: VAD — user STOPPED speaking")
-            elif isinstance(frame, InterimTranscriptionFrame):
-                logger.debug(f"…  Coach: interim STT {frame.text!r}")
-
             if isinstance(frame, TranscriptionFrame):
-                logger.debug(f"✓  Coach: STT final {frame.text!r}")
                 loop = asyncio.get_event_loop()
                 # core.handle is sync and may block on the LLM → run it off the loop.
                 turn = await loop.run_in_executor(None, self._core.handle, frame.text)
                 self._log.record(turn, vad="speech")
                 logger.debug(
-                    f"→  Coach: intent={turn.intent.value} "
-                    f"ptr {turn.pointer_before}->{turn.pointer_after} "
-                    f"say={turn.spoke!r}"
+                    f"turn: {turn.transcript!r} → {turn.intent.value} "
+                    f"ptr {turn.pointer_before}->{turn.pointer_after}"
                 )
                 if turn.pointer_after != turn.pointer_before:
                     # arm() cancels any existing timer, re-arms only if the new step is timed.

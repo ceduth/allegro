@@ -29,11 +29,21 @@ This pulls `pipecat-ai[deepgram,cartesia,silero,webrtc,whisper,kokoro,runner]` �
 UI that `bot.py` runs under. (Deepgram/Cartesia/Anthropic SDKs come along but go unused on
 the local profile.)
 
-> **macOS / Apple Silicon (verified on pipecat-ai 1.4.0):** Pipecat's Whisper STT module
-> does a module-level `import mlx_whisper` on macOS, so it won't import without it — even
-> though faster-whisper is the actual backend. The `[live]` extra installs it
-> automatically via a `sys_platform == 'darwin'` marker; if you installed without that,
-> run `pip install "pipecat-ai[mlx-whisper]"`.
+> **macOS / Apple Silicon (verified on pipecat-ai 1.4.0) — two required steps:**
+>
+> 1. **mlx-whisper**: Pipecat's Whisper STT module does a module-level `import mlx_whisper`
+>    on macOS, so it won't import without it — even though faster-whisper is the actual
+>    backend. The `[live]` extra installs it via a `sys_platform == 'darwin'` marker; if
+>    not, run `pip install "pipecat-ai[mlx-whisper]"`. The local profile uses the
+>    Metal-accelerated `whisper_mlx` provider (~1s/utterance vs ~3.5s on CPU).
+>
+> 2. **opencv-python-headless**: `pipecat-ai[webrtc]` pulls `opencv-python`, whose bundled
+>    `libavdevice` **conflicts with PyAV's** and corrupts WebRTC *audio decode* on macOS —
+>    audio flows into the pipeline but VAD never fires. `cv2` is required by the transport,
+>    so you can't remove it; swap to the headless build after install:
+>    ```bash
+>    pip uninstall -y opencv-python && pip install opencv-python-headless
+>    ```
 
 ## 2. Verify the version-sensitive bits (do this before the first run)
 
@@ -114,7 +124,9 @@ Per the spec, most failures are diagnosable straight from this — keep it open 
 | `ERR_SSL_PROTOCOL_ERROR` on the LAN IP; log says `Invalid HTTP request received` | Chrome force-upgraded `http://<ip>` to `https://` against the plain-HTTP server. Don't use the LAN IP — use `localhost` on the laptop, or a tunnel for the phone (§4). |
 | Mic blocked / no mic prompt on the phone | Non-localhost HTTP is not a secure context, so `getUserMedia` is blocked. There is no header/flag fix worth chasing — use a tunnel (§4). `localhost` on the laptop is exempt. |
 | No greeting / no audio back after connecting | Capture the server log and the browser EVENTS panel. The greeting fires on `on_client_connected` (confirmed correct on 1.4.0); if the pipeline connects but is silent, check STT/TTS built and the mic track started. |
-| Agent gets cut off by noise | **Expected** on stock defaults (`allow_interruptions: true`). That's the Phase 0 baseline finding, not a bug — record it. |
+| Audio reaches the pipeline (peaks are non-zero) but VAD never fires; "mysterious" macOS audio crashes | opencv/PyAV `libavdevice` clash — swap to `opencv-python-headless` (see §1). Not a VAD-threshold issue. |
+| Re-wiring VAD and it won't fire | In Pipecat 1.4 VAD is a pipeline **`VADProcessor`**, not a `TransportParams(vad_analyzer=…)` field — that kwarg is silently dropped. Add `VADProcessor(vad_analyzer=…)` to the `Pipeline([...])` list (see `bot.py`). |
+| Agent doesn't stop when you talk over it | **By design** — the local profile is half-duplex (`allow_interruptions: false`, invariant A). Noise must never cut the coach off mid-sentence. |
 
 ## What this proves (and doesn't)
 
