@@ -25,6 +25,12 @@ live = [
 dev = [
     "pytest>=8",
 ]
+# The visual pipeline editor (Phase 3) — a small FastAPI app + xyflow front-end.
+# Runs without the live pipeline: it only reads/writes the YAML and lists the registry.
+editor = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
 
 [tool.setuptools.packages.find]
 include = ["allegro*"]

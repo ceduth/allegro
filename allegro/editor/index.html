@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Allegro — pipeline editor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xyflow/react@12.3.5/dist/style.css" />
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.4 -apple-system, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+    #bar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #0002; flex: 0 0 auto; }
+    #bar b { font-size: 15px; }
+    #bar .path { font-family: ui-monospace, monospace; opacity: .6; font-size: 12px; }
+    #bar .spacer { flex: 1; }
+    #bar label { display: flex; align-items: center; gap: 6px; }
+    #bar button { padding: 6px 14px; border-radius: 6px; border: 1px solid #0003; background: #2563eb; color: #fff; cursor: pointer; font-weight: 600; }
+    #bar button:disabled { opacity: .5; cursor: default; }
+    #status { font-size: 12px; opacity: .7; min-width: 120px; }
+    #root { flex: 1; min-height: 0; }
+    .node { border-radius: 10px; padding: 10px 12px; min-width: 130px; border: 1px solid #0003; background: #fff; box-shadow: 0 1px 3px #0001; }
+    .node .t { font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; opacity: .55; }
+    .node .sub { margin-top: 4px; font-family: ui-monospace, monospace; font-size: 12px; }
+    .node.io { background: #f4f4f5; border-style: dashed; text-align: center; font-size: 18px; }
+    .node.core { background: #fef3c7; border-color: #f59e0b; }
+    .node.oss  { background: #ecfdf5; border-color: #10b981; }
+    .node.buy  { background: #eff6ff; border-color: #3b82f6; }
+    .node select { margin-top: 6px; width: 100%; padding: 4px; border-radius: 6px; border: 1px solid #0003; font: inherit; background: #fff; }
+    .badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+    .badge.paid { background: #dbeafe; color: #1e40af; } .badge.local { background: #d1fae5; color: #065f46; } .badge.mock { background: #ede9fe; color: #5b21b6; }
+    @media (prefers-color-scheme: dark) { body{background:#18181b;color:#e4e4e7} .node{background:#27272a;border-color:#3f3f46} .node select{background:#18181b;color:#e4e4e7} .node.io{background:#1f1f23} .node.core{background:#3a2f14} .node.oss{background:#14312a} .node.buy{background:#16233f} }
+  </style>
+  <script type="importmap">
+  {"imports":{
+    "react":"https://esm.sh/react@18.3.1",
+    "react-dom/client":"https://esm.sh/react-dom@18.3.1/client",
+    "@xyflow/react":"https://esm.sh/@xyflow/react@12.3.5?deps=react@18.3.1,react-dom@18.3.1",
+    "htm":"https://esm.sh/htm@3.1.1"
+  }}
+  </script>
+</head>
+<body>
+  <div id="bar">
+    <b>Allegro pipeline</b>
+    <span class="path" id="path">loading…</span>
+    <span class="spacer"></span>
+    <label><input type="checkbox" id="interrupt" /> allow interruptions</label>
+    <span id="status"></span>
+    <button id="save" disabled>Save</button>
+  </div>
+  <div id="root"></div>
+
+  <script type="module">
+    import React, { useEffect, useState, useCallback } from 'react'
+    import { createRoot } from 'react-dom/client'
+    import { ReactFlow, Background, Controls, Handle, Position } from '@xyflow/react'
+    import htm from 'htm'
+    const html = htm.bind(React.createElement)
+
+    const META = {
+      vad:   { label: 'VAD',   tone: 'oss'  },
+      stt:   { label: 'STT',   tone: 'buy'  },
+      coach: { label: 'Coach', tone: 'core' },
+      llm:   { label: 'LLM',   tone: 'buy'  },
+      tts:   { label: 'TTS',   tone: 'buy'  },
+    }
+
+    function LegNode({ data }) {
+      return html`
+        <div className=${'node ' + data.tone}>
+          <${Handle} type="target" position=${Position.Left} />
+          <div className="t">${data.label}</div>
+          ${data.select
+            ? html`<select value=${data.provider} onChange=${(e) => data.onProvider(data.leg, e.target.value)}>
+                ${data.options.map((o) => html`<option key=${o.name} value=${o.name}>${o.name} · ${o.kind}</option>`)}
+              </select>`
+            : html`<div className="sub">${data.sub}</div>`}
+          <${Handle} type="source" position=${Position.Right} />
+        </div>`
+    }
+    function IoNode({ data }) {
+      return html`<div className="node io">
+        <${Handle} type="target" position=${Position.Left} />${data.label}<${Handle} type="source" position=${Position.Right} />
+      </div>`
+    }
+    const nodeTypes = { leg: LegNode, io: IoNode }
+
+    const EDGES = [['mic','vad'],['vad','stt'],['stt','coach'],['coach','tts'],['tts','speaker'],['coach','llm']]
+      .map(([s, t], i) => ({ id: 'e' + i, source: s, target: t, animated: !(s === 'coach' && t === 'llm') }))
+
+    function buildNodes(cfg, providers, onProvider) {
+      const n = cfg.nodes
+      const leg = (id, x, y, extra) => ({ id, type: 'leg', position: { x, y }, data: { label: META[id].label, tone: META[id].tone, leg: id, ...extra } })
+      const swap = (id) => ({ select: true, provider: n[id].provider, options: providers[id] || [], onProvider })
+      return [
+        { id: 'mic', type: 'io', position: { x: 0, y: 140 }, data: { label: '🎙️' } },
+        leg('vad', 150, 130, { sub: `${n.vad.provider} · conf ${n.vad.params?.confidence ?? '—'}` }),
+        leg('stt', 330, 130, swap('stt')),
+        leg('coach', 530, 130, { sub: 'builtin · fixed' }),
+        leg('tts', 730, 130, swap('tts')),
+        { id: 'speaker', type: 'io', position: { x: 920, y: 140 }, data: { label: '🔊' } },
+        leg('llm', 530, 290, swap('llm')),
+      ]
+    }
+
+    function App() {
+      const [cfg, setCfg] = useState(null)
+      const [providers, setProviders] = useState(null)
+      const [dirty, setDirty] = useState(false)
+
+      useEffect(() => {
+        Promise.all([fetch('/api/pipeline').then((r) => r.json()), fetch('/api/providers').then((r) => r.json())])
+          .then(([pipe, provs]) => {
+            setCfg(pipe.config); setProviders(provs)
+            document.getElementById('path').textContent = pipe.path.split('/').pop()
+            document.getElementById('interrupt').checked = !!(pipe.config.runtime && pipe.config.runtime.allow_interruptions)
+          })
+      }, [])
+
+      const onProvider = useCallback((leg, provider) => {
+        setCfg((c) => {
+          const next = structuredClone(c)
+          next.nodes[leg].provider = provider
+          delete next.nodes[leg].model  // model is provider-specific; let the adapter default
+          return next
+        })
+        setDirty(true)
+      }, [])
+
+      const save = useCallback(() => {
+        const body = structuredClone(cfg)
+        body.runtime = { ...(body.runtime || {}), allow_interruptions: document.getElementById('interrupt').checked }
+        fetch('/api/pipeline', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          .then((r) => r.json())
+          .then((r) => { document.getElementById('status').textContent = r.ok ? 'saved ✓' : 'save failed'; setDirty(false) })
+      }, [cfg])
+
+      useEffect(() => {
+        const btn = document.getElementById('save')
+        btn.disabled = !dirty; btn.onclick = save
+        if (dirty) document.getElementById('status').textContent = 'unsaved changes'
+      }, [dirty, save])
+
+      if (!cfg || !providers) return html`<div style=${{ padding: 24 }}>Loading pipeline…</div>`
+      const nodes = buildNodes(cfg, providers, onProvider)
+      return html`<${ReactFlow} nodes=${nodes} edges=${EDGES} nodeTypes=${nodeTypes} fitView proOptions=${{ hideAttribution: true }}>
+        <${Background} /><${Controls} />
+      <//>`
+    }
+
+    createRoot(document.getElementById('root')).render(html`<${App} />`)
+  </script>
+</body>
+</html>

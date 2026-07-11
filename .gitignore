@@ -22,3 +22,4 @@ logs/
 
 # Editor / machine-local config
 .vscode/
+.claude/settings.local.json

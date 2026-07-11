@@ -56,10 +56,12 @@ swap (Ollama/vLLM) behind the same interface, plus the scale-time migration. Eac
 swap must **re-pass the A/B table** before it counts. Write the cost-migration triggers
 into the README.
 
-### Phase 3 — Visual plug-and-play (xyflow)
-A React/xyflow editor where each node is a graph node, the provider is a dropdown from
-the registry, params are a node inspector, and **the graph serializes back to
-`allegro.pipeline.yaml`.** No separate runtime; the YAML stays the source of truth.
+### Phase 3 — Visual plug-and-play (xyflow) ✅ shipped
+An xyflow editor (`allegro/editor/`) where each node is a graph node, the provider is a
+dropdown from the registry, and **the graph serializes back to the active profile YAML** —
+no separate runtime; the YAML stays the source of truth. `python -m allegro.editor`.
+The coach node is fixed; STT/LLM/TTS are swappable. Verified round-trip: dropdown swap →
+Save → YAML updated → bot reads it on next start.
 
 ## Cost model (per ~30-min cook, hosted)
 

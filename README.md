@@ -25,6 +25,7 @@ mic → SmallWebRTC → Silero VAD → Deepgram STT → CoachProcessor → Carte
 | `allegro/registry.py` | provider name → adapter (the swap surface) |
 | `allegro/obs/turnlog.py` | per-turn JSONL log (transcript · vad · intent · pointer before/after) |
 | `allegro/bot.py` | Pipecat wiring, built from the YAML; FastAPI for the phone browser |
+| `allegro/editor/` | Visual pipeline editor (xyflow GUI over the YAML) — `python -m allegro.editor` |
 | `tests/test_core.py` | The C/D/E/A/B table as deterministic text-level tests |
 
 ## Docs
@@ -94,3 +95,16 @@ Edit the active profile — change a node's `provider`/`model`. Built-in provide
 `ollama` is the only remaining `NotImplementedError` stub (Phase 2). **Cost-migration
 triggers** (per `docs/spike-plan.md`): swap TTS → Kokoro at ~1k sessions/mo; STT →
 faster-whisper when its bill clears a box (re-pass A/B first); keep the LLM on Haiku.
+
+### Or swap visually (xyflow editor)
+
+```bash
+pip install -e ".[editor]"        # just FastAPI + uvicorn; no live pipeline needed
+python -m allegro.editor          # → http://localhost:7870
+```
+
+A node graph of the cascade with a provider dropdown on each swappable leg (STT/LLM/TTS);
+the coach node is fixed. Pick a provider, hit **Save**, and it rewrites the active profile
+— the same YAML the bot reads on next start. Point it at a profile with
+`ALLEGRO_PIPELINE=allegro.pipeline.local.yaml python -m allegro.editor`. (Save rewrites via
+a YAML dump, so hand-written comments aren't preserved.)
