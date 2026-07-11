@@ -12,7 +12,11 @@ transport:
   type: webrtc
 
 runtime:
-  allow_interruptions: true
+  # Half-duplex: the coach finishes its line and is NOT cut off by mic input. This is
+  # invariant A — noise (blender, dropped pan, chatter) must never interrupt mid-sentence,
+  # and we can't reliably tell that noise from intentional speech. (The hosted 0b baseline
+  # keeps this true to MEASURE how badly stock barge-in fails the A table.)
+  allow_interruptions: false
 
 nodes:
   vad:
