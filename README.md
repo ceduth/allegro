@@ -34,6 +34,7 @@ mic → SmallWebRTC → Silero VAD → Deepgram STT → CoachProcessor → Carte
 |---|---|
 | [`docs/spike-plan.md`](docs/spike-plan.md) | The plan: declarative-pipeline spine, phasing (0a→3), cost model, model-swap + xyflow path. Start here. |
 | [`docs/runbook-local.md`](docs/runbook-local.md) | Step-by-step to run the $0 local voice loop on a phone (install, macOS gotchas, model downloads, troubleshooting, teardown). |
+| [`docs/editor-spec.md`](docs/editor-spec.md) | Spec for evolving the visual editor: drag/inspector (3a), compiled topology (3b), save/load versions (3c). |
 | [`docs/phase0-baseline.md`](docs/phase0-baseline.md) | Fill-in A–F results template for the first live cook — the recorded baseline. |
 | [`docs/billing.md`](docs/billing.md) | How it's paid for, and how to make an inadvertent LLM bill structurally impossible (mock-first, spend pre-flight). |
 | [`docs/cost-model.md`](docs/cost-model.md) | Per-cook token budget, leg-by-leg cost, self-hosted vs cloud. The LLM is the cheap leg; STT/TTS is the spend. |
