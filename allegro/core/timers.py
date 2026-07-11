@@ -25,9 +25,14 @@ def timer_for(step: Step) -> int | None:
 
 
 class TimerManager:
-    def __init__(self, on_elapse: Callable[[Step], Awaitable[None]]) -> None:
+    def __init__(
+        self, on_elapse: Callable[[Step], Awaitable[None]], scale: float = 1.0
+    ) -> None:
         self._on_elapse = on_elapse
         self._task: asyncio.Task | None = None
+        # Dev-only wall-clock speedup (e.g. 0.02 turns a 10-min simmer into 12s) so the
+        # E-section can be validated live without waiting the full duration. 1.0 = real.
+        self._scale = scale
 
     def cancel(self) -> None:
         if self._task and not self._task.done():
@@ -41,10 +46,10 @@ class TimerManager:
         seconds = timer_for(step)
         if seconds is None:
             return False
-        self._task = asyncio.create_task(self._run(step, seconds))
+        self._task = asyncio.create_task(self._run(step, seconds * self._scale))
         return True
 
-    async def _run(self, step: Step, seconds: int) -> None:
+    async def _run(self, step: Step, seconds: float) -> None:
         try:
             await asyncio.sleep(seconds)
         except asyncio.CancelledError:

@@ -28,11 +28,13 @@ _RULES: dict[str, str] = {
     ),
 }
 
-# keyword → topic. First match wins. Kept deliberately tight: a bare "oil" would wrongly
-# intercept "how much oil?" (a quantity question) with splatter advice, so hot_oil keys on
-# hazard words only, and doneness drops "how long" for the same reason.
+# keyword → topic. First match wins. Kept deliberately tight so a question is only
+# intercepted when it actually touches a safety topic. doneness includes neutral phrasings
+# ("is it safe yet", "ready to eat") so a real doneness question on the raw-chicken step is
+# caught — but seasoning/quantity questions ("more salt?", "add pepper?") are NOT.
 _TRIGGERS: list[tuple[tuple[str, ...], str]] = [
-    (("done", "cooked", "cook through", "pink", "ready to eat", "165", "temperature",
+    (("done", "cooked", "cook through", "cooked enough", "pink", "ready to eat",
+      "ready yet", "safe to eat", "safe yet", "is it safe", "165", "temperature",
       "temp"), "doneness"),
     (("raw", "salmonella", "contaminat", "wash", "taste"), "raw_protein"),
     (("splatter", "smoke", "grease fire", "oil fire", "flare"), "hot_oil"),
@@ -41,18 +43,10 @@ _TRIGGERS: list[tuple[tuple[str, ...], str]] = [
 
 class SafetyGuardrail:
     def answer(self, transcript: str, step: Step) -> str | None:
-        """Return a curated safety answer if the question touches a safety topic OR the
-        current step is itself safety-critical; otherwise None (let the LLM answer)."""
+        """Return a curated safety answer only when the question touches a safety topic;
+        otherwise None (let the LLM answer). An unrelated question is never hijacked, even
+        on a safety-critical step — a doneness/raw question there matches by keyword."""
         t = transcript.lower()
-
-        # A question asked while standing on a raw-protein step is safety-relevant even
-        # if phrased neutrally ("is this ok yet?").
-        if step.safety and step.safety_topic == "raw_chicken":
-            for keys, topic in _TRIGGERS:
-                if any(k in t for k in keys):
-                    return _RULES[topic]
-            return _RULES["doneness"]
-
         for keys, topic in _TRIGGERS:
             if any(k in t for k in keys):
                 return _RULES[topic]

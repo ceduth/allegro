@@ -160,3 +160,47 @@ def test_safety_question_routes_to_curated_rule():
     assert turn.intent is Intent.QUESTION
     assert "165" in turn.spoke  # curated doneness rule, not an LLM guess
     assert turn.pointer_after == turn.pointer_before
+
+
+def test_safety_step_does_not_hijack_unrelated_questions():
+    # On the raw-chicken step, a seasoning question must NOT get the safety rule.
+    c = make_coach()
+    c.handle("next")          # ->1
+    c.handle("next")          # ask safety
+    c.handle("yes")           # ->2 raw chicken
+    turn = c.handle("should I add pepper?")
+    assert turn.intent is Intent.QUESTION
+    assert turn.source != "safety"
+    assert "165" not in turn.spoke
+    assert turn.pointer_after == turn.pointer_before
+
+
+def test_timer_arms_fires_once_and_is_cancelable():
+    # E-section mechanism: untimed step arms nothing; a timed step fires exactly once;
+    # a jump/cancel stops it. Scaled tiny so the test is fast.
+    import asyncio
+
+    from allegro.core import TimerManager
+    from allegro.recipe import Step
+
+    timed = Step(index=3, text="simmer ten minutes", timer_seconds=600)
+    untimed = Step(index=0, text="chop the onion")
+
+    async def scenario():
+        fired = []
+
+        async def on_elapse(step):
+            fired.append(step.index)
+
+        tm = TimerManager(on_elapse, scale=0.0001)  # 600s -> 0.06s
+        assert tm.arm(untimed) is False              # E3: untimed arms nothing
+        assert tm.arm(timed) is True                 # E1: timed arms
+        await asyncio.sleep(0.3)
+        assert fired == [3]                          # E2: fires exactly once
+        fired.clear()
+        tm.arm(timed)
+        tm.cancel()                                  # jump away → cancelled
+        await asyncio.sleep(0.3)
+        assert fired == []
+
+    asyncio.run(scenario())

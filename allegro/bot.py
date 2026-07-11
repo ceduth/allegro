@@ -79,7 +79,11 @@ def _make_coach_processor(core: CoachCore, turnlog: TurnLog):
             super().__init__()
             self._core = core
             self._log = turnlog
-            self._timers = TimerManager(self._on_timer)
+            # ALLEGRO_TIMER_SCALE (dev): shrink timed steps to validate E-section live,
+            # e.g. 0.02 → a 10-min simmer fires "time's up" in ~12s. Unset/1 = real time.
+            self._timers = TimerManager(
+                self._on_timer, scale=float(os.environ.get("ALLEGRO_TIMER_SCALE", "1"))
+            )
 
         async def _on_timer(self, step) -> None:
             self._log.event("timer_elapsed", step=step.index)
