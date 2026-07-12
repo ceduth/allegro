@@ -22,9 +22,11 @@ validates every edit so Save only ever produces a runnable pipeline.
 
 ---
 
-## Phase 3a — Make it a real editor (no runtime change) · ~½ day · low risk
+## Phase 3a — Make it a real editor (no runtime change) · ✅ shipped
 
-No schema change, no `bot.py` change. Three fixes:
+No schema change, no `bot.py` change. Three fixes (all landed and browser-verified: nodes
+drag and persist across re-renders, a per-node inspector edits every field, and Save writes
+a `layout:` block the bot safely ignores):
 
 ### 3a.1 Fix node dragging
 Nodes don't move because `App` rebuilds the node array from config every render, discarding
