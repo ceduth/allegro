@@ -9,8 +9,9 @@
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
     body { margin: 0; font: 14px/1.4 -apple-system, system-ui, sans-serif; height: 100vh; }
-    #root { height: 100vh; display: flex; flex-direction: column; }
-    .bar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid #0002; flex: 0 0 auto; }
+    #root { height: 100vh; }
+    .app { height: 100vh; display: flex; flex-direction: column; }
+    .bar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid #0002; flex: 0 0 auto; white-space: nowrap; }
     .bar b { font-size: 15px; }
     .bar .path { font-family: ui-monospace, monospace; opacity: .6; font-size: 12px; }
     .bar .spacer { flex: 1; }
@@ -20,6 +21,12 @@
     .main { flex: 1; min-height: 0; display: flex; }
     .flow { flex: 1; min-width: 0; }
     .inspector { width: 260px; flex: 0 0 260px; border-left: 1px solid #0002; padding: 14px; overflow-y: auto; }
+    @media (max-width: 760px) {
+      .main { flex-direction: column; }
+      .flow { flex: 1 1 auto; min-height: 55vh; }
+      .inspector { width: auto; flex: 0 0 auto; max-height: 42vh; border-left: none; border-top: 1px solid #0002; }
+      .bar { gap: 8px; overflow-x: auto; } .bar .path { display: none; }
+    }
     .inspector h3 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; opacity: .55; }
     .inspector .hint { font-size: 12px; opacity: .5; margin: 0 0 14px; }
     .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
@@ -151,7 +158,7 @@
       }, [cfg, nodes])
 
       if (!cfg || !providers) return html`<div style=${{ padding: 24 }}>Loading pipeline…</div>`
-      return html`<div>
+      return html`<div className="app">
         <div className="bar">
           <b>Allegro pipeline</b><span className="path">${path}</span><span className="spacer"></span>
           <span className="status">${status}</span>
